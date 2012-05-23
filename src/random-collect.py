@@ -10,7 +10,7 @@ from std_msgs.msg import String,Float32,Time
 from rssimap.msg import RssiStamped
 from numpy import arange
 
-RATE=1/200.
+RATE=1/60.
 IDS=['a','b','c']
 VALS=arange(1.,.1,-.05)
 

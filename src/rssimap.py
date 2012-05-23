@@ -13,6 +13,7 @@ from rssimap.msg import RssiStamped,RssiUniqueStamped
 from geometry_msgs.msg import PoseStamped,Point
 from visualization_msgs.msg import Marker
 from colorschemes import torgba
+from time import time
 
 class RadioMap():
     """ stores rssi value at position in a non-uniform grid with the given
@@ -36,7 +37,10 @@ class RadioMap():
                 return n-rest
 
         self.tores=tores
-        self.max_x=self.max_y=self.min_y=self.min_x=None
+        self.max_x=self.max_y=-5000
+        self.min_y=self.min_x=5000
+        self.t=0
+        self.tt=0
 
     def update_pose(self, msg):
         x,y=msg.pose.position.x,msg.pose.position.y
@@ -49,52 +53,57 @@ class RadioMap():
         self.max_y = max(self.max_y, self.y)
         self.min_y = min(self.min_y, self.y)
 
+        #for radiomap in grid.items():
+        #    radiomap[(x,y)]
+
     def update_rssi(self, rssi):
+        #t=time()
         if not hasattr(self,"x"):
             return
 
         x,y,grid=self.x,self.y,self.grid
 
-        # make sure that there is a dict at x,y
-        try: grid[(x,y)]
-        except KeyError:
-            grid[(x,y)]={}
-
         # make sure to create a dict for each id
-        try: grid[(x,y)][rssi.id]
-        except KeyError:
+        if not grid.has_key(rssi.id):
+            grid[rssi.id] = {}
             self.ids.append(rssi.id)
-            grid[(x,y)][rssi.id]={}
+        radiomap = grid[rssi.id]
+
+        # make sure that there is a dict at x,y
+        if not radiomap.has_key((x,y)):
+            radiomap[(x,y)] = {}
 
         # and one for each rssi-value
-        try: grid[(x,y)][rssi.id][rssi.rssi]
-        except:
-            grid[(x,y)][rssi.id][rssi.rssi]=1
-        else:
-            grid[(x,y)][rssi.id][rssi.rssi]+=1
+        if not radiomap[(x,y)].has_key(rssi.rssi):
+            radiomap[(x,y)][rssi.rssi] = 0
+        radiomap[(x,y)][rssi.rssi] += 1
 
         #rospy.loginfo(rospy.get_name()+
         #        " added at %f %f %s %f"%(x,y,rssi.id,rssi.rssi))
 
         if self.cb: self.cb(self,x,y)
 
+        #print("rssi")
+        #self.tt+=time()-t
+
+        print "rssicb: ",self.tt,self.t,self.tt/self.t
+        self.t=self.tt=0
+
     def vectorize(self,x,y, fill_value=0.):
         """ return the sorted rssi measurement vector at pos x,y, filled
         with fill_value where no measurement is available.
         """
-        # get the measurements at pos x,y, which is a dict of ids -> measurments
-        v = self.grid[(x,y)]
+        #t=time()
 
         # this dict maps from rssi-value -> number of occurences, rssi_mean calculates
         # the mean of those observations...
         rssi_mean=lambda d: np.sum([rssi*occur for rssi,occur in d.items()])/np.sum(d.values())
 
-        # now blow up the measurement vector at pos (x,y) over all node-ids seen on the
-        # network. Where there is measurement for this position we add the rssi_mean,
-        # if there is none we evaluate to fill_value.
-        v = [(rssi_mean(v[id])) if v.has_key(id) else fill_value for id in sorted(self.ids)]
+        # all measurements we have
+        v = [rssi_mean(self.grid[id][(x,y)]) if self.grid[id].has_key((x,y)) else 0 for id in sorted(self.ids)]
 
         # and finally convert to numpy array
+        #self.t+=time()-t
         return np.array(v)
 
 class UniqueMap():
@@ -118,29 +127,41 @@ class UniqueMap():
         self.marker=marker
 
     def __call__(self,rmap,x,y):
+        tt=time()
         grid,colors,marker = self.grid,self.colors,self.marker
 
         # check if there is already something on the distance grid
-        try: value = grid[(x,y)]
+        try: grid[(x,y)]
         except KeyError:
-            grid[(x,y)] = value = 1. # XXX: bad assumption, check this!
-            colors[Point(x,y,0)] = ColorRGBA(*torgba(value))
+            grid[(x,y)] = 1. # XXX: bad assumption, check this!
+            colors[Point(x,y,0)] = ColorRGBA(*torgba(grid[(x,y)]))
 
         # this is the vector we are comparing
         vector = rmap.vectorize(x,y)**2
 
         # calculate the absolute distance to all other measurments vectors,
         # and update the list if there is a new minimum.
-        for (i,j) in [t for t in rmap.grid.keys() if t!=(x,y)]:
-            distance = np.sqrt(np.sum(vector-rmap.vectorize(i,j)**2))
-            value    = min(value,distance)
+        update=[]
+        fugrid=zip(np.arange(rmap.min_x,rmap.max_x),np.arange(rmap.min_y,rmap.max_y))
+        for (i,j) in [t for t in fugrid if t!=(x,y)]:
+            other = rmap.vectorize(i,j)**2
+            if np.sum(other)==0: # ignore zero-vectors
+                continue
+
+            distance = np.sqrt(np.sum(vector-other))
+
+            if grid[(x,y)] > distance:
+                grid[(x,y)] = distance
+                colors[Point(x=x,y=y)] = ColorRGBA(*torgba(distance,scheme='fire'))
+                update.append((x,y))
+                # also update the vector we compared to
+                grid[(i,j)] = distance
+                colors[Point(x=i,y=j)] = ColorRGBA(*torgba(distance,scheme='fire'))
+                update.append((i,j))
 
         # check if there was an update, if so publish
-        if grid[(x,y)]!=value:
-            grid[(x,y)]=value
-            colors[Point(x=x,y=y)]=ColorRGBA(*torgba(value,scheme='fire'))
-
-            self.pub_unique.publish(RssiUniqueStamped(x=x,y=y,min_distance=value))
+        for (x,y) in update:
+            self.pub_unique.publish(RssiUniqueStamped(x=x,y=y,min_distance=grid[(x,y)]))
 
             marker.header.stamp=rospy.get_rostime()
             marker.points=colors.keys()
@@ -148,7 +169,8 @@ class UniqueMap():
             self.pub_rviz.publish(marker)
 
             rospy.loginfo(rospy.get_name()+
-                " recalc at %f %f to %f"%(x,y,value))
+                " recalc at %f %f to %f"%(x,y,grid[(x,y)]))
+
 
 if __name__ == '__main__':
     try:
