@@ -11,7 +11,7 @@ from rssimap.msg import RssiStamped
 from numpy import arange
 
 RATE=1/60.
-IDS=['a','b','c']
+IDS=range(10)
 VALS=arange(1.,.1,-.05)
 
 def random_collect():
@@ -19,7 +19,8 @@ def random_collect():
     rospy.init_node('rssi_random_collect')
 
     while not rospy.is_shutdown():
-        msg=RssiStamped(id=choice(IDS), rssi=choice(VALS))
+        msg=RssiStamped(id=choice(str(IDS)), rssi=choice(VALS))
+        #msg=RssiStamped(id='a',rssi=.5)
         pub.publish(msg)
         rospy.sleep(RATE)
 

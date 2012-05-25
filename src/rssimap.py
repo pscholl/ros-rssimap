@@ -36,6 +36,8 @@ class RadioMap():
             else:
                 return n-rest
 
+        self.resolution=resolution
+
         self.tores=tores
         self.max_x=self.max_y=-5000
         self.min_y=self.min_x=5000
@@ -86,8 +88,16 @@ class RadioMap():
         #print("rssi")
         #self.tt+=time()-t
 
-        print "rssicb: ",self.tt,self.t,self.tt/self.t
-        self.t=self.tt=0
+        #print "rssicb: ",self.tt,self.t,self.tt/self.t
+        #self.t=self.tt=0
+
+    def map_grid(self):
+        """XXX: can be optimized to recaculate the grid only when the extreme points 
+        of the map changed.
+        """
+        xrange=np.arange(self.min_x,self.max_x,self.resolution)
+        yrange=np.arange(self.min_y,self.max_y,self.resolution)
+        return [(x,y) for x in xrange for y in yrange]
 
     def vectorize(self,x,y, fill_value=0.):
         """ return the sorted rssi measurement vector at pos x,y, filled
@@ -119,7 +129,7 @@ class UniqueMap():
         marker.ns='rssimap'
         marker.id=0
         marker.type=Marker.CUBE_LIST
-        marker.action=Marker.ADD
+        marker.action=Marker.MODIFY
         marker.scale.x=.7 # XXX: this should reflect the resolution chosen in RSSIMAP
         marker.scale.y=.7
         marker.color.a=.5
@@ -127,36 +137,38 @@ class UniqueMap():
         self.marker=marker
 
     def __call__(self,rmap,x,y):
-        tt=time()
+        #tt=time()
         grid,colors,marker = self.grid,self.colors,self.marker
+        update=[]
 
         # check if there is already something on the distance grid
         try: grid[(x,y)]
         except KeyError:
-            grid[(x,y)] = 1. # XXX: bad assumption, check this!
-            colors[Point(x,y,0)] = ColorRGBA(*torgba(grid[(x,y)]))
+            grid[(x,y)] = 1. # XXX: maybe bad assumption, check this! or at least check that incoming RSSI are normalized
+            colors[(x,y)] = ColorRGBA(*torgba(1-grid[(x,y)],scheme='fire'))
+            update.append((x,y))
+            #print "added at %f %f %s"%(x,y,str(ColorRGBA(*torgba(grid[(x,y)]))))
 
         # this is the vector we are comparing
-        vector = rmap.vectorize(x,y)**2
+        vector = rmap.vectorize(x,y)
+        mgrid  = rmap.map_grid()
 
         # calculate the absolute distance to all other measurments vectors,
         # and update the list if there is a new minimum.
-        update=[]
-        fugrid=zip(np.arange(rmap.min_x,rmap.max_x),np.arange(rmap.min_y,rmap.max_y))
-        for (i,j) in [t for t in fugrid if t!=(x,y)]:
-            other = rmap.vectorize(i,j)**2
+        for (i,j) in [t for t in rmap.map_grid() if t!=(x,y)]:
+            other = rmap.vectorize(i,j)
             if np.sum(other)==0: # ignore zero-vectors
                 continue
 
-            distance = np.sqrt(np.sum(vector-other))
+            distance = np.sqrt(np.sum((vector-other)**2))
 
             if grid[(x,y)] > distance:
                 grid[(x,y)] = distance
-                colors[Point(x=x,y=y)] = ColorRGBA(*torgba(distance,scheme='fire'))
+                colors[(x,y)] = ColorRGBA(*torgba(1-distance,scheme='fire'))
                 update.append((x,y))
-                # also update the vector we compared to
+            if grid[(i,j)] > distance:
                 grid[(i,j)] = distance
-                colors[Point(x=i,y=j)] = ColorRGBA(*torgba(distance,scheme='fire'))
+                colors[(i,j)] = ColorRGBA(*torgba(1-distance,scheme='fire'))
                 update.append((i,j))
 
         # check if there was an update, if so publish
@@ -164,12 +176,11 @@ class UniqueMap():
             self.pub_unique.publish(RssiUniqueStamped(x=x,y=y,min_distance=grid[(x,y)]))
 
             marker.header.stamp=rospy.get_rostime()
-            marker.points=colors.keys()
+            marker.points=[Point(x=i,y=j) for (i,j) in colors.keys()]
             marker.colors=colors.values()
             self.pub_rviz.publish(marker)
 
-            rospy.loginfo(rospy.get_name()+
-                " recalc at %f %f to %f"%(x,y,grid[(x,y)]))
+            rospy.loginfo(rospy.get_name()+" recalc at %f %f to %f"%(x,y,grid[(x,y)]))
 
 
 if __name__ == '__main__':
