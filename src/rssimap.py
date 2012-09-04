@@ -64,12 +64,14 @@ class RadioMap():
             return
 
         x,y,grid=self.x,self.y,self.grid
+        id = ":".join(hex(ord(x))[2:] for x in rssi.bssid)
+        id += "("+rssi.id+")"
 
         # make sure to create a dict for each id
-        if not grid.has_key(rssi.id):
-            grid[rssi.id] = {}
-            self.ids.append(rssi.id)
-        radiomap = grid[rssi.id]
+        if not grid.has_key(id):
+            grid[id] = {}
+            self.ids.append(id)
+        radiomap = grid[id]
 
         # make sure that there is a dict at x,y
         if not radiomap.has_key((x,y)):
@@ -81,7 +83,7 @@ class RadioMap():
         radiomap[(x,y)][rssi.rssi] += 1
 
         #rospy.loginfo(rospy.get_name()+
-        #        " added at %f %f %s %f"%(x,y,rssi.id,rssi.rssi))
+        #        " added at %f %f %s %f"%(x,y,id,rssi.rssi))
 
         if self.cb: self.cb(self,x,y)
 
@@ -147,7 +149,7 @@ class UniqueMap():
             grid[(x,y)] = 1. # XXX: maybe bad assumption, check this! or at least check that incoming RSSI are normalized
             colors[(x,y)] = ColorRGBA(*torgba(1-grid[(x,y)],scheme='fire'))
             update.append((x,y))
-            #print "added at %f %f %s"%(x,y,str(ColorRGBA(*torgba(grid[(x,y)]))))
+            print "added at %f %f %s"%(x,y,str(ColorRGBA(*torgba(grid[(x,y)]))))
 
         # this is the vector we are comparing
         vector = rmap.vectorize(x,y)
@@ -173,7 +175,9 @@ class UniqueMap():
 
         # check if there was an update, if so publish
         for (x,y) in update:
-            self.pub_unique.publish(RssiUniqueStamped(x=x,y=y,min_distance=grid[(x,y)]))
+            self.pub_unique.publish(RssiUniqueStamped(
+                x=x,y=y,
+                min_distance=grid[(x,y)]))
 
             marker.header.stamp=rospy.get_rostime()
             marker.points=[Point(x=i,y=j) for (i,j) in colors.keys()]
