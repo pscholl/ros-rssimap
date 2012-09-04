@@ -1,0 +1,22 @@
+<launch>
+  <env name="REALROBOT" value="1" />
+  <node pkg="tf" type="static_transform_publisher" name="laser_broadcaster" args="0 0 .1 0 0 0 base_link laser 100" />
+  <include file="$(find hector_slam_launch)/launch/mapping_box.launch" />
+
+  <!-- <node name="nav_to_tf" pkg="odometry_to_tf" type="odometry_to_tf">
+    <param name="odometry_topic" value="state"/>
+    <param name="frame_id" value="nav"/>
+  </node> -->
+
+  <include file="$(find quadro)/launch/quadro.launch">
+    <arg name="cmdline" value="$(optenv QUADRO_OPTIONS) --config mapping" /> 
+  </include>
+
+  <include file="$(find rssimap)/launch/record.launch">
+  </include>
+
+  <node name="pose_estimation" pkg="hector_pose_estimation" type="pose_estimation" output="screen"/>
+
+  <param name="scan_device" value="wlan1"/>
+  <node name="wifi_collect" pkg="rssimap" type="wifi-collect.py" />
+</launch>
