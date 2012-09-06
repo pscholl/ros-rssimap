@@ -13,11 +13,8 @@
   </include>
 -->
 
-  <include file="$(find rssimap)/launch/record.launch">
-  </include>
-
+  <include file="$(find rssimap)/launch/record.launch" />
   <node name="pose_estimation" pkg="hector_pose_estimation" type="pose_estimation" output="screen"/>
-
   <param name="scan_device" value="wlan1"/>
   <node name="wifi_collect" pkg="rssimap" type="wifi-collect.py" />
 </launch>
