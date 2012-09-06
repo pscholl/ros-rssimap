@@ -8,13 +8,15 @@
     <param name="frame_id" value="nav"/>
   </node> -->
 
-<!--
   <include file="$(find quadro)/launch/quadro.launch">
+    <arg name="cmdline" value="$(optenv QUADRO_OPTIONS) --config mapping" /> 
   </include>
--->
 
-  <include file="$(find rssimap)/launch/record.launch" />
+  <include file="$(find rssimap)/launch/record.launch">
+  </include>
+
   <node name="pose_estimation" pkg="hector_pose_estimation" type="pose_estimation" output="screen"/>
+
   <param name="scan_device" value="wlan1"/>
   <node name="wifi_collect" pkg="rssimap" type="wifi-collect.py" />
 </launch>

@@ -55,6 +55,7 @@ Map.Topic=/map
 Marker.Enabled=1
 Marker.Marker\ Topic=visualization_marker
 Marker.Queue\ Size=100
+Marker.rssimap=1
 Mid\ Virtual\ Scan..AxisColorAutocompute\ Value\ Bounds=1
 Mid\ Virtual\ Scan..AxisColorAxis=2
 Mid\ Virtual\ Scan..AxisColorMax\ Value=10
@@ -175,8 +176,20 @@ Name=Path
 [Display9]
 ClassName=rviz::MarkerDisplay
 Name=Marker
-[Window]
 Height=731
 Width=683
 X=-2
+[TF.Frames.]
+base_footprint.Enabled=1
+base_link.Enabled=1
+base_stabilized.Enabled=1
+laser.Enabled=1
+map.Enabled=1
+nav.Enabled=1
+scanmatcher_frame.Enabled=1
+[Window]
+Height=987
+Width=1280
+X=-1840
+>>>>>>> b0a39fbd064e5e5c3eb13aba133f6ec18c8b5253
 Y=0
