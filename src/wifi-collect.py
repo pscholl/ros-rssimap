@@ -19,19 +19,15 @@ RATE=0.01
 
 def publish_bss(pub,bssarr):
     for bss in bssarr:
-        pub.publish( RssiStamped(
-                   id = bss.ie[0].ssid,
+        ssid = [ie.ssid for ie in bss.ie if hasattr(ie,"ssid") and ie.ssid in printable]
+        ssid = ssid[0] if len(ssid)>0 else ""
+        msg = RssiStamped(
+                   id = ssid,
                 bssid = bss.bssid,
                  rssi = bss.signal/100.0,
-            frequency = bss.frequency) )
-
-        #msg = RssiStamped(
-        #           id = bss.ie[0].ssid,
-        #        bssid = bss.bssid,
-        #         rssi = bss.signal/100.0,
-        #    frequency = bss.frequency)
-        #msg.header.stamp = rospy.Time.now()
-        #pub.publish(msg)
+            frequency = bss.frequency)
+        msg.header.stamp = rospy.Time.now()
+        pub.publish(msg)
 
 def wifi_collect():
     pub=rospy.Publisher('rssi_out', RssiStamped)

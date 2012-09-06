@@ -494,7 +494,7 @@ def ltv_parse(buf):
         if length == 0: raise Exception("lenght==0")
 
 def ltv_ie_parse(buf):
-    while len(buf) > 0:
+    while len(buf) > 1:
         type,length = struct.unpack('BB',buf[:2])
         value = buf[2:length+2]
         yield length,type,value
@@ -795,8 +795,7 @@ class NL80211(GENLSocket):
                              t==NL80211_BSS_BEACON_IE:
                             ie = OpenStruct()
                             for l,t,v in ltv_ie_parse(v):
-                                if t==IE_ATTR_SSID:
-                                    ie.ssid = v
+                                if t==IE_ATTR_SSID: ie.ssid = v
                             if not hasattr(bss,"ie"): bss.ie = [ie]
                             else: bss.ie.append(ie)
                         else:
