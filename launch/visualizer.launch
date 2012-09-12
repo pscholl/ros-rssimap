@@ -12,5 +12,8 @@
     <arg name="trajectory_source_frame_name" value="scanmatcher_frame"/>
   </include>
 
+  <arg name="bagfile"/>
+  <node pkg="rosbag" type="rosbag" name="rosbag" args="play --clock $(arg bagfile) --topics /tf /scan /rssi_out"/>
+
 </launch>
 

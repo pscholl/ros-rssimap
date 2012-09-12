@@ -11,10 +11,8 @@
   <depend package="std_msgs"/>
   <depend package="rospy"/>
   <depend package="roscpp"/>
-  <!--
   <depend package="rviz"/>
   <depend package="geometry_msgs"/>
-  -->
 
 </package>
 
