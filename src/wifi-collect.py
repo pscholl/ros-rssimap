@@ -14,6 +14,7 @@ from std_msgs.msg import String,Float32,Time
 from rssimap.msg import RssiStamped
 from nlmessage import NL80211,NLException
 from random import sample
+from string import printable
 
 RATE=0.01
 
@@ -21,7 +22,7 @@ def publish_bss(pub,bssarr):
     for bss in bssarr:
         id = [ie.ssid for ie in bss.ie if hasattr(ie,"ssid") and ie.ssid in printable]
         id = ssid[0] if len(ssid)>0 else ""
-        if += "("
+        id += "("
         id += ":".join("%x"%char for char in bss.bssid)
         id += ")"
 
