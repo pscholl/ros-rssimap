@@ -3,7 +3,7 @@
   <node pkg="tf" type="static_transform_publisher" name="laser_broadcaster" args="0 0 .1 0 0 0 base_link laser 100" />
 
   <include file="$(find hector_slam_launch)/launch/mapping_box.launch" />
-  <param name="/hector_geotiff_node/map_file_path" type="string" value="$(find rssimap)/maps/" />
+  <param name="/hector_geotiff_node/map_file_path" type="string" value="/home/rssimap/" />
 
   <!-- <node name="nav_to_tf" pkg="odometry_to_tf" type="odometry_to_tf">
     <param name="odometry_topic" value="state"/>
@@ -16,7 +16,7 @@
 
   <node name="pose_estimation" pkg="hector_pose_estimation" type="pose_estimation" output="screen">
     <remap from="poseupdate" to="dflksdjflksdjf" />
-     <param name="height/elevation" value="162"/>
+    <param name="height/elevation" value="162"/>
   </node>
 
   <param name="scan_device" value="wlan2"/>
