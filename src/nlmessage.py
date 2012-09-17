@@ -569,7 +569,6 @@ class NLMessage(object):
         self._type  = type
         self._extra = extra
         self._fmt   = struct.Struct("ihhii")
-        self._multibuf = ""
 
     def pack(self, fmt, *vals):
         """ Netlink Length-Type-Value (LTV) attribute:
@@ -592,7 +591,15 @@ class NLMessage(object):
         buf += struct.pack(fmt,*vals)
         return "".join(buf)
 
-    def unpack(self,buf):
+    def unpack(self, buf):
+        if hasattr(buf,"recv"):
+            try:
+                sock = buf
+                buf = buf.recv(4096)
+            except socket.error,e:
+                if e.errno==11: return
+                else: raise
+
         while len(buf) > 0:
             msglen,type,flags,seq,pid = self._fmt.unpack(buf[:self._fmt.size])
             buf = buf[self._fmt.size:]
@@ -612,8 +619,12 @@ class NLMessage(object):
             for l,t,v in ltv_parse(buf[:msglen]):
                 yield l,t,v
 
-            if (flags&NLM_F_MULTI): buf = buf[msglen:]
-            else:                    break
+            if (flags&NLM_F_MULTI):
+                buf = buf[msglen:];
+                if len(buf) == 0:
+                    buf = sock.recv(4096)
+            else:
+                break;
 
     def __repr__(self):
         return "(type=%d, flags=%d, seq=%d, pid=%d extra=%s)"%(self._type,self._flags,self._seq,self._pid,self._extra)
@@ -675,7 +686,7 @@ class GENLSocket(socket.socket):
                         self._groups[key] = value
                         key,value = None,None
 
-        self.setblocking(0)
+        #self.setblocking(0)
         for group in groups:
             self.setsockopt(SOL_NETLINK,NETLINK_ADD_MEMBERSHIP,self._groups[group])
 
@@ -685,10 +696,8 @@ class GENLSocket(socket.socket):
 
     def rx(self):
         try:
-            buf = self.recv(4096)
-            ltv = self._msg.unpack(buf)
-            return ltv
-        except socket.error,e: 
+            return self._msg.unpack(self)
+        except socket.error,e:
             if e.errno==11: return []
             else: raise
 
