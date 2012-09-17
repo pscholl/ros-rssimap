@@ -15,7 +15,7 @@
   -->
 
   <arg name="bagfile"/>
-  <node pkg="rosbag" type="rosbag" name="rosbag" args="play --clock $(arg bagfile) --topics /tf /scan /rssi /map /trajectory /pose"/>
+  <node pkg="rosbag" type="rosbag" name="rosbag" args="play --clock $(arg bagfile) --topics /tf /scan /rssi /rssi_pose /map /trajectory /pose /slam_out_pose"/>
 
 </launch>
 
