@@ -46,7 +46,7 @@ def get_nlmsg(nl802):
              raise
 
 def wifi_collect():
-    pub=rospy.Publisher('rssi_out', RssiStamped)
+    pub=rospy.Publisher('rssi', RssiStamped)
     rospy.init_node('rssi_wifi_collect')
 
     pname = rospy.search_param('scan_device')

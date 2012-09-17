@@ -21,9 +21,9 @@ def pose(data):
 def rssi_pose_merge():
     global pub
     rospy.init_node('rssi_pose')
-    pub=rospy.Publisher('rssi_pose_out', RssiPoseStamped)
-    rospy.Subscriber("rssi_out", RssiStamped, rssi)
-    rospy.Subscriber("slam_out_pose", PoseStamped, pose)
+    pub=rospy.Publisher('rssi_pose', RssiPoseStamped)
+    rospy.Subscriber("rssi", RssiStamped, rssi)
+    rospy.Subscriber("pose", PoseStamped, pose)
     rospy.spin()
 
 if __name__ == '__main__':

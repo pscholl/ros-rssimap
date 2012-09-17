@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 # Implements the off-line of fingerprinting RSSI mapping algorithms, i.e.
-# it collects rssi-measurements (/rssi_out topic) and pose estimations 
+# it collects rssi-measurements (/rssi topic) and pose estimations 
 # (/slam_out). And combines the position and rssi measurements. And publishes
 # this data again.
 
@@ -192,7 +192,7 @@ if __name__ == '__main__':
         r=RadioMap(cb=UniqueMap())
         rospy.init_node('rssimap')
         rospy.Subscriber('/slam_out_pose', PoseStamped, r.update_pose)
-        rospy.Subscriber('/rssi_out', RssiStamped, r.update_rssi)
+        rospy.Subscriber('/rssi', RssiStamped, r.update_rssi)
         rospy.spin()
     except rospy.ROSInterruptException:
         pass

@@ -13,7 +13,7 @@
   </include>
 
   <arg name="bagfile"/>
-  <node pkg="rosbag" type="rosbag" name="rosbag" args="play --clock $(arg bagfile) --topics /tf /scan /rssi_out"/>
+  <node pkg="rosbag" type="rosbag" name="rosbag" args="play --clock $(arg bagfile) --topics /tf /scan /rssi"/>
 
 </launch>
 

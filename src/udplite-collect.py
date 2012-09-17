@@ -18,7 +18,7 @@ class UdpLiteCollect():
     extract them here and publish them on rssi_collect_out.
     """
     def __init__(self):
-        self.pub=rospy.Publisher('rssi_out', RssiStamped)
+        self.pub=rospy.Publisher('rssi', RssiStamped)
         rospy.init_node('rssi_udplite_collect')
 
         af,typ,proto,name,sa = getaddrinfo(IP,PORT,AF_INET6,SOCK_DGRAM,IPPROTO_UDLITE)[0]

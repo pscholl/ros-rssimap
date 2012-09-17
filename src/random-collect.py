@@ -15,7 +15,7 @@ IDS=range(10)
 VALS=arange(1.,.1,-.05)
 
 def random_collect():
-    pub=rospy.Publisher('rssi_out', RssiStamped)
+    pub=rospy.Publisher('rssi', RssiStamped)
     rospy.init_node('rssi_random_collect')
 
     while not rospy.is_shutdown():
