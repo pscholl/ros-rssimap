@@ -9,7 +9,6 @@ Map.Enabled=1
 Map.Topic=/map
 Marker.Enabled=1
 Marker.Marker\ Topic=visualization_marker
-Marker.rssimap=1
 Path.Alpha=1
 Path.ColorR=1
 Path.ColorG=0
@@ -20,12 +19,12 @@ Pose.Axes\ Length=1
 Pose.Axes\ Radius=0,1
 Pose.Enabled=1
 Pose.Shape=1
-Pose.Topic=/slam_out_pose
+Pose.Topic=/pose
 Tool\ 2D\ Nav\ GoalTopic=goal
 Tool\ 2D\ Pose\ EstimateTopic=initialpose
 Camera\ Type=rviz::OrbitViewController
-Camera\ Config=1.0854 5.87858 141.034 0.190654 -0.655264 0.25751
-Property\ Grid\ State=selection=Marker.Enabled.Marker.Marker Topic;expanded=.Global Options,.Global StatusTopStatus,Pose.Enabled.Pose.Shape Properties,Marker.Enabled,Marker.Enabled.Marker.Namespaces;scrollpos=0,0;splitterpos=133,266;ispageselected=1
+Camera\ Config=1.0854 5.87858 221.92 0.190654 -0.655264 0.25751
+Property\ Grid\ State=selection=Pose.Enabled.Pose.Topic;expanded=.Global Options,Pose.Enabled,Marker.Enabled,Marker.Enabled.Marker.Namespaces;scrollpos=0,0;splitterpos=181,363;ispageselected=1
 [Display0]
 Name=Map
 Package=rviz
