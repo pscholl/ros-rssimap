@@ -21,6 +21,7 @@
 
   <param name="scan_device" value="wlan2"/>
   <node name="wifi_collect" pkg="rssimap" type="wifi-collect.py" />
+  <node name="rssi_pose_merge" pkg="rssimap" type="rssi-pose-merge.py" />
 
   <include file="$(find rssimap)/launch/record.launch">
   </include>
