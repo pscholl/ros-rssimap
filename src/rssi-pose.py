@@ -2,7 +2,7 @@
 
 import roslib; roslib.load_manifest('rssimap')
 import rospy, tf
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, Pose
 from rssimap.msg import RssiStamped, RssiPoseStamped
 from numpy import arange
 
@@ -13,14 +13,14 @@ def rssi(data):
         (trans,rot) = lis.lookupTransform('/map', '/base_link', rospy.Time(0))
         msg = RssiPoseStamped()
         msg.rssi = data
+        msg.header.stamp = rospy.Time.now()
+        msg.header.frame_id = "/map"
         msg.pose.position.x,msg.pose.position.y,msg.pose.position.z=trans
         msg.pose.orientation.x,msg.pose.orientation.y,\
                 msg.pose.orientation.z,msg.pose.orientation.w=rot
         pub.publish(msg)
     except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
         pass
-
-    #msg.header.stamp = rospy.Time.now()
 
 def rssi_pose_merge():
     global pub,lis
