@@ -8,7 +8,7 @@ of wireless positioning algorithms. With the help of the
 the position of the wireless receiver is automatically gathered and correlated
 with the scanned RSSI values. This provides a RSSI Signal Map of the
 environment. Details can be found here,
-[http://scholar.google.com/scholar?as_q=%22A+Feasibility+Study+of+Wrist-Worn+Accelerometer+Based+Detection+of+Smoking+Habits%22&btnG=Search+Scholar&as_epq=&as_oq=&as_eq=&as_occt=any&as_sauthors=Scholl[(Fast Indoor Radio-Map Building for
+[http://scholar.google.com/scholar?as_q=%22A+Feasibility+Study+of+Wrist-Worn+Accelerometer+Based+Detection+of+Smoking+Habits%22&btnG=Search+Scholar&as_epq=&as_oq=&as_eq=&as_occt=any&as_sauthors=Scholl](Fast Indoor Radio-Map Building for
 RSSI-based Localization Systems):
 
 > @inproceedings{scholl2012fast,
