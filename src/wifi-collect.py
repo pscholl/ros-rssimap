@@ -23,6 +23,7 @@ def publish_bss(pub,bssarr):
         ssid = [ie.ssid for ie in bss.ie if hasattr(ie,"ssid") and\
                 all(c in printable for c in ie.ssid)]
         ssid = ssid[0] if len(ssid)>0 else ""
+        ssid += " (%s)"%(":".join(hex(x)[2:] for x in bss.bssid))
         msg = RssiStamped(
                    id = ssid,
                 bssid = bss.bssid,
