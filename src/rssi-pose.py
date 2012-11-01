@@ -10,7 +10,7 @@ pub,lis = None,None
 
 def rssi(data):
     try:
-        (trans,rot) = lis.lookupTransform('/map', '/base_link', rospy.Time(0))
+        (trans,rot) = lis.lookupTransform('/world', '/base_link', rospy.Time(0))
         msg = RssiPoseStamped()
         msg.rssi = data
         msg.header.stamp = rospy.Time.now()
