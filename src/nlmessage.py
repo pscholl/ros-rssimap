@@ -3,6 +3,7 @@ from select import select
 from math import ceil
 from sys import stdin,stdout,exit
 from errno import errorcode
+from net_tools import if_nametoindex
 import struct,re,socket,atexit
 
 # Flags values
@@ -395,40 +396,6 @@ def hexprint(arr, width=8):
                ''.join([g if g in printable else '.' for g in group])
         print (" "+line)
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#~ LibC definitions of if_nametoindex
-# from http://code.activestate.com/recipes/442490-ipv6-multicast/
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-if_nametoindex = None
-
-if if_nametoindex is None:
-    try: import ctypes
-    except ImportError: pass
-    else:
-        _libc = ctypes.CDLL("libc.so.6")
-        def if_nametoindex(interfaceName):
-            # if you have a better way to get the interface index, I'd love to hear
-            # it...  You are supposed to be able to leave the interface number as 0,
-            # but I get an exception when I try this.  (MacOS 10.4)  It may be because
-            # it is a multihomed device...
-            return _libc.if_nametoindex(interfaceName)
-
-if if_nametoindex is None:
-    try: import dl
-    except ImportError: pass
-    else:
-        _libc = dl.open('libc.so')
-        def if_nametoindex(interfaceName):
-            # if you have a better way to get the interface index, I'd love to hear
-            # it...  You are supposed to be able to leave the interface number as 0,
-            # but I get an exception when I try this.  (MacOS 10.4)  It may be because
-            # it is a multihomed device...
-            return _libc.call('if_nametoindex', interfaceName)
-
-if if_nametoindex is None:
-    raise RuntimeError("No implementation allowing access to if_nametoindex available")
-
 class OpenStruct:
     def __init__(self, **dic):
         self.__dict__.update(dic)
@@ -450,6 +417,12 @@ class NLException(Exception):
     def __init__(self, num, *args):
         Exception.__init__(self,*args)
         self.num = num
+        self.args = args
+
+        if len(args)>0:
+            self.len,self.type,self.flags,self.seq,self.pid,buf=args
+            self.cmd,self.version,self.reserved = struct.unpack("BBH", buf[:4])
+            buf = buf[:4]
 
     def __repr__(self):
         return "error from Netlink: %d (%s)"%(self.num,errorcode[-self.num])
@@ -597,8 +570,9 @@ class NLMessage(object):
                 sock = buf
                 buf = buf.recv(4096)
             except socket.error,e:
-                if e.errno==11: return
-                else: raise
+                raise
+                #if e.errno==11: return
+                #else: raise
 
         while len(buf) > 0:
             msglen,type,flags,seq,pid = self._fmt.unpack(buf[:self._fmt.size])
@@ -608,7 +582,8 @@ class NLMessage(object):
             if type == NLMSG_ERROR:
                 error,length,type,flags,seq,pid = struct.unpack("lLHHLL",buf[:20])
                 if error==0: break
-                else:        raise NLException(error)
+                else:
+                    raise NLException(error,length,type,flags,seq,pid,buf[20:])
             elif type == NLMSG_DONE:
                 break
 
@@ -695,11 +670,7 @@ class GENLSocket(socket.socket):
                        extra=GENLMessage(CTRL_CMD_GETFAMILY) )
 
     def rx(self):
-        try:
-            return self._msg.unpack(self)
-        except socket.error,e:
-            if e.errno==11: return []
-            else: raise
+        return self._msg.unpack(self)
 
     def tx(self, cmd, args=[], flags=NLM_F_REQUEST|NLM_F_ACK):
         msg = NLMessage(self._id, flags, extra=GENLMessage(cmd))
@@ -746,11 +717,21 @@ class NL80211(GENLSocket):
     def __init__(self, device="wlan0"):
         GENLSocket.__init__(self,"nl80211", ["scan", "mlme"])
         self._if_index = if_nametoindex(device)
+        self._device = device
 
         if self._if_index == 0:
             raise Exception("unable to find interface '%s'"%device)
 
+        self.handle_event()
+
+    def chiface(self,dev):
+        self._if_index = if_nametoindex(dev)
+        self._device = dev
+
     def trigger_scan(self,freqs=None):
+        if isinstance(freqs, (int,long,float)):
+            freqs = [int(freqs)]
+
         if freqs is None:
             self.tx(NL80211_CMD_TRIGGER_SCAN,
                 [(4,NL80211_ATTR_IFINDEX, self._if_index),
@@ -827,6 +808,20 @@ class NL80211(GENLSocket):
                 #self.get_scan_results()
 
         return msg
+
+    def is_active(self):
+        # checks if the nl80211 is supported on this interface
+        try:
+            self.sched_scan_start(100)
+            print self.handle_event()
+        except NLException, e:
+            if e.num == -19 or e.num == -100: # ENODEV or ENETDOWN
+                return False
+            elif e.num == -95: # ENOTSUPP
+                return True # ignore this one since sched_scan_start is not supported by all cards
+            else:
+                raise
+        return True
 
     def ops(self):
         return [ k for k,v in globals().items() if v in self._ops and k.startswith("NL80211_CMD") ]
