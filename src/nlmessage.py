@@ -422,7 +422,12 @@ class NLException(Exception):
         if len(args)>0:
             self.len,self.type,self.flags,self.seq,self.pid,buf=args
             self.cmd,self.version,self.reserved = struct.unpack("BBH", buf[:4])
-            buf = buf[:4]
+            buf = buf[4:]
+            #print self.len,self.type,self.flags,self.seq,self.pid
+            #print self.cmd,self.version,self.reserved
+            #hexprint(buf)
+            if len(buf)>4:
+                self.devid = struct.unpack("I", buf[4:8])[0]
 
     def __repr__(self):
         return "error from Netlink: %d (%s)"%(self.num,errorcode[-self.num])
@@ -566,13 +571,8 @@ class NLMessage(object):
 
     def unpack(self, buf):
         if hasattr(buf,"recv"):
-            try:
-                sock = buf
-                buf = buf.recv(4096)
-            except socket.error,e:
-                raise
-                #if e.errno==11: return
-                #else: raise
+            sock = buf
+            buf = buf.recv(8192)
 
         while len(buf) > 0:
             msglen,type,flags,seq,pid = self._fmt.unpack(buf[:self._fmt.size])
@@ -597,7 +597,7 @@ class NLMessage(object):
             if (flags&NLM_F_MULTI):
                 buf = buf[msglen:];
                 if len(buf) == 0:
-                    buf = sock.recv(4096)
+                    buf = sock.recv(8192)
             else:
                 break;
 
@@ -641,7 +641,7 @@ class GENLSocket(socket.socket):
 
         # and unpack the rx'ed one
         self._ops,self._groups = [],{}
-        for l,t,v in m.unpack(self.recv(4096)):
+        for l,t,v in m.unpack(self.recv(8192)):
             if t==CTRL_ATTR_FAMILY_ID:
                 self._id = struct.unpack("H",v)[0]
 
@@ -724,10 +724,6 @@ class NL80211(GENLSocket):
 
         self.handle_event()
 
-    def chiface(self,dev):
-        self._if_index = if_nametoindex(dev)
-        self._device = dev
-
     def trigger_scan(self,freqs=None):
         if isinstance(freqs, (int,long,float)):
             freqs = [int(freqs)]
@@ -759,7 +755,7 @@ class NL80211(GENLSocket):
             flags=NLM_F_REQUEST|NLM_F_ACK|NLM_F_DUMP)
 
     def handle_event(self):
-        msg = OpenStruct(type="none")
+        msg = OpenStruct(type="empty")
 
         for l,t,v in self.rx():
             if self._msg._extra._cmd == NL80211_CMD_NEW_SCAN_RESULTS:
@@ -799,6 +795,8 @@ class NL80211(GENLSocket):
                 msg.type = "trigger"
                 if t==NL80211_ATTR_SCAN_FREQUENCIES:
                     msg.freqs = [struct.unpack("L",x)[0] for x in ltv_parse_list(v)]
+                elif t==NL80211_ATTR_IFINDEX:
+                    msg.ifindex = struct.unpack("L",v)[0]
                 elif t==NL80211_ATTR_SCAN_SSIDS:
                     pass
 
