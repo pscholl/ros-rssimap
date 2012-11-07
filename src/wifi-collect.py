@@ -13,6 +13,7 @@ from std_msgs.msg import String,Float32,Time
 from rssimap.msg import RssiStamped
 from net_tools import all_interfaces, if_nametoindex
 from nlmessage import NL80211,NLException,OpenStruct
+from random import sample
 from string import printable
 from time import time
 
@@ -21,6 +22,7 @@ def rotate(l,n):
 
 def publish_bss(pub,bssarr,dev):
     for bss in bssarr:
+        if not hasattr(bss,"ie"): continue
         ssid = [ie.ssid for ie in bss.ie if hasattr(ie,"ssid") and\
                 all(c in printable for c in ie.ssid)]
         ssid = ssid[0] if len(ssid)>0 else ""
@@ -47,6 +49,60 @@ def get_nlmsg(nl802):
          else:
              raise
 
+class WifiDevice(object):
+    def __init__(self, dev, nl802):
+        self.idx  = if_nametoindex(dev)
+        self.name = dev
+        self.sock = nl802
+
+    def trigger_scan(self):
+        self.sock._if_index = self.idx
+
+        if not hasattr(self,"spectrum"):
+            self.sock.trigger_scan()
+            return
+
+        if not hasattr(self,"generation") or len(self.generation)==0:
+            live = [freq for (freq,stat) in self.spectrum.items() if stat=="live"]
+            dead = [freq for (freq,stat) in self.spectrum.items() if stat=="dead"]
+            self.generation = live + sample(dead,2)
+
+            #print self.name,"live", live
+            #print self.name,"dead", dead
+            #print self.name,"new generation", self.generation
+
+        self.freq = self.generation.pop()
+        #print self.name, "scan:", self.freq
+        self.sock.trigger_scan(self.freq)
+
+    def checkmsg(self,nlmsg):
+        if not hasattr(nlmsg,"ifindex"):
+            print "ignoring non-addressed message"
+            return None
+        elif nlmsg.ifindex != self.idx:
+            return None
+
+        # make sure we talk to the right device
+        self.sock._if_index = self.idx
+
+        if nlmsg.type=="trigger" and not hasattr(self,"spectrum"):
+            self.spectrum = dict([(freq,"dead") for freq in nlmsg.freqs])
+        elif nlmsg.type=="scan" and not hasattr(nlmsg,"bss"):
+            # scan finished message
+            self.sock.get_scan_results()
+            self.trigger_scan()
+        elif nlmsg.type=="scan" and hasattr(self,"freq"):
+            # these are the results
+            bss = [bss for bss in nlmsg.bss if bss.frequency==self.freq]
+            if len(bss) > 0 : self.spectrum[self.freq] = "live"
+            else: self.spectrum[self.freq] = "dead"
+            self.trigger_scan()
+            return bss
+        elif nlmsg.type=="trigger" and hasattr(self,"bss"):
+            pass
+        #else:
+        #    print self.name, self.idx, "unahndeld", nlmsg, nlmsg.type
+
 def wifi_collect():
     pub=rospy.Publisher('rssi', RssiStamped)
     rospy.init_node('rssi_wifi_collect')
@@ -64,37 +120,16 @@ def wifi_collect():
     nl802 = NL80211(interfaces[0])
     rospy.loginfo("collecting RSSI on device(s) '%s'"%(", ".join(interfaces)))
 
-    # use the full list of all 802.11 frequencies and remove on error
-    # of unsupported frequency of device
-    #freqs = [2412, 2417, 2422, 2427, 2432, 2437, 2442, 2447, 2452, 2457, 2462, 2467, 2472, 5180, 5200, 5220, 5240, 5260, 5280, 5300, 5320, 5500, 5520, 5540, 5560, 5580, 5600, 5620, 5640, 5660, 5680, 5700, 5745, 5765, 5785, 5805, 5825]
-    freqs = []
-    spectra = dict([(if_nametoindex(iface),list(freqs)) for iface in interfaces])
+    # create the devices
+    interfaces = [WifiDevice(iface, nl802) for iface in interfaces]
+    for iface in interfaces:
+        iface.trigger_scan()
 
-    # spread the spectra evenly over all devices
-    step = int(len(freqs)/len(interfaces))
-    for k,i in zip(spectra.keys(), range(len(interfaces))):
-        spectra[k] = rotate(freqs,step*i)
-
-    # trigger a scan on the whole spectrum of each card
-    # afterwards just trigger a scan wheneve a new result is in.
-    for k in spectra:
-        nl802._if_index = k
-        nl802.trigger_scan()
-
+    timestamp = 0.
     while not rospy.is_shutdown():
         try: nlmsg = get_nlmsg(nl802)
         except NLException, e:
-            if e.num==-22: # EINVAL -> frequency not supported
-                # unsupported freq -> remove from scan spectrum
-                del spectra[e.devid][0]
-
-                nl802._if_index = nlmsg.ifindex
-                nl802.trigger_scan(spectra[nlmsg.ifindex][0])
-                rospy.loginfo("spectrum on %d has %d elements: %s",
-                        nlmsg.ifindex, len(spectra[nlmsg.ifindex]),
-                        str(spectra[nlmsg.ifindex]))
-                continue
-            if e.num==-16: # EBUSY
+            if e.num==-22 or e.num==-16 : # EINVAL -> frequency not supported, EBUSY
                 continue
             else:
                 raise
@@ -104,29 +139,15 @@ def wifi_collect():
            nlmsg.type=="empty":
                continue
 
-        if nlmsg.type=="trigger" and spectra[nlmsg.ifindex]==[]:
-            spectra[nlmsg.ifindex] = nlmsg.freqs
+        for iface in interfaces:
+            bss = iface.checkmsg(nlmsg)
+            if bss is not None: publish_bss(pub,bss,iface.name)
 
-        if nlmsg.type=="scan" and hasattr(nlmsg,"bss"):
-            freq = spectra[nlmsg.ifindex][0]
-            publish_bss(pub,[bss for bss in nlmsg.bss if bss.frequency==freq], str(nlmsg.ifindex))
-            spectra[nlmsg.ifindex] = rotate(spectra[nlmsg.ifindex],1)
+        if time() - timestamp > 1. :
+            for iface in interfaces:
+                iface.trigger_scan()
 
-            nl802._if_index = nlmsg.ifindex
-            nl802.trigger_scan(spectra[nlmsg.ifindex][0])
-            #rospy.loginfo("triggger scan on %d freq %d", nlmsg.ifindex, spectra[nlmsg.ifindex][0])
-        elif nlmsg.type=="scan":
-            # this elif on pupose since a "scan" event without the bss
-            # attribute means scan just finished
-            nl802._if_index = nlmsg.ifindex
-            #rospy.loginfo("scan finished on %d", nlmsg.ifindex)
-            nl802.get_scan_results()
-
-            nl802._if_index = nlmsg.ifindex
-            nl802.trigger_scan(spectra[nlmsg.ifindex][0])
-            #rospy.loginfo("trigger scan on %d freq %d", nlmsg.ifindex, spectra[nlmsg.ifindex][0])
-
-        i+=1
+            timestamp = time()
 
 if __name__ == '__main__':
     try:
