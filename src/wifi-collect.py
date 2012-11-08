@@ -20,7 +20,15 @@ from time import time
 def rotate(l,n):
     return l[n:] + l[:n]
 
+old_bss = None
 def publish_bss(pub,bssarr,dev):
+    global old_bss
+
+    if old_bss is None:
+        old_bss = set(bssarr)
+    else:
+        bssarr = set(bssarr)-old_bss
+
     for bss in bssarr:
         if not hasattr(bss,"ie"): continue
         ssid = [ie.ssid for ie in bss.ie if hasattr(ie,"ssid") and\
@@ -35,6 +43,9 @@ def publish_bss(pub,bssarr,dev):
             frequency = bss.frequency)
         msg.header.stamp = rospy.Time.now()
         pub.publish(msg)
+
+        if ssid=="hrz (0:27:d:8c:ea:90)":
+            print dev, ssid, bss.frequency, bss.last_seen, "ms", bss.signal/100.
 
 def get_nlmsg(nl802):
      try:
@@ -60,20 +71,13 @@ class WifiDevice(object):
 
         if not hasattr(self,"spectrum"):
             self.sock.trigger_scan()
-            return
-
-        if not hasattr(self,"generation") or len(self.generation)==0:
-            live = [freq for (freq,stat) in self.spectrum.items() if stat=="live"]
-            dead = [freq for (freq,stat) in self.spectrum.items() if stat=="dead"]
-            self.generation = live + sample(dead,2)
-
-            #print self.name,"live", live
-            #print self.name,"dead", dead
-            #print self.name,"new generation", self.generation
-
-        self.freq = self.generation.pop()
-        #print self.name, "scan:", self.freq
-        self.sock.trigger_scan(self.freq)
+        else:
+            toscan = []
+            if len(self.dead)>2 : toscan = list(self.live) + sample(self.dead,2) + [2437]
+            else:                 toscan = self.live
+            #print "trigger on", toscan, set(toscan)
+            toscan = list(set(toscan))
+            self.sock.trigger_scan(toscan)
 
     def checkmsg(self,nlmsg):
         if not hasattr(nlmsg,"ifindex"):
@@ -85,30 +89,30 @@ class WifiDevice(object):
         # make sure we talk to the right device
         self.sock._if_index = self.idx
 
-        if nlmsg.type=="trigger" and not hasattr(self,"spectrum"):
-            self.spectrum = dict([(freq,"dead") for freq in nlmsg.freqs])
-        elif nlmsg.type=="scan" and not hasattr(nlmsg,"bss"):
+        if not hasattr(self,"spectrum") and nlmsg.type=="trigger":
+            self.spectrum = nlmsg.freqs
+            self.live = []
+            self.dead = list(self.spectrum)
+
+        if nlmsg.type=="scan" and not hasattr(nlmsg,"bss"):
             # scan finished message
             self.sock.get_scan_results()
-            self.trigger_scan()
-        elif nlmsg.type=="scan" and hasattr(self,"freq"):
-            # these are the results
-            bss = [bss for bss in nlmsg.bss if bss.frequency==self.freq]
-            if len(bss) > 0 : self.spectrum[self.freq] = "live"
-            else: self.spectrum[self.freq] = "dead"
+        elif nlmsg.type=="scan":
+            self.live = set([bss.frequency for bss in nlmsg.bss if bss.frequency in self.spectrum])
+            self.dead = set([freq for freq in self.spectrum if not freq in self.live])
+            bss       = [bss for bss in nlmsg.bss if bss.frequency in self.spectrum]
             self.trigger_scan()
             return bss
-        elif nlmsg.type=="trigger" and hasattr(self,"bss"):
-            pass
-        #else:
-        #    print self.name, self.idx, "unahndeld", nlmsg, nlmsg.type
+
+        return None
+
 
 def wifi_collect():
     pub=rospy.Publisher('rssi', RssiStamped)
     rospy.init_node('rssi_wifi_collect')
 
     # init
-    interfaces = [NL80211(if_name) for if_name in all_interfaces()]
+    interfaces = [NL80211(if_name) for if_name in all_interfaces() if if_name!='wlan0']
     interfaces = [nl for nl in interfaces if nl.is_active()]
     interfaces = [nl._device for nl in interfaces]
 
@@ -130,6 +134,7 @@ def wifi_collect():
         try: nlmsg = get_nlmsg(nl802)
         except NLException, e:
             if e.num==-22 or e.num==-16 : # EINVAL -> frequency not supported, EBUSY
+                print e.num
                 continue
             else:
                 raise
@@ -143,7 +148,7 @@ def wifi_collect():
             bss = iface.checkmsg(nlmsg)
             if bss is not None: publish_bss(pub,bss,iface.name)
 
-        if time() - timestamp > 1. :
+        if time() - timestamp > 5. :
             for iface in interfaces:
                 iface.trigger_scan()
 

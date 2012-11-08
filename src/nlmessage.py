@@ -412,6 +412,12 @@ class OpenStruct:
         return v # i like cascates :)
     def __str__(self):
         return " ".join([str(k) + " = " + str(v) if not type(v)==list else str(k)+" = "+" \n\t ".join([str(x) for x in v]) for k,v in self.__dict__.items()])
+    def __hash__(self):
+        tmp = dict(self.__dict__.items())
+        if "last_seen" in tmp:
+            del tmp["last_seen"]
+        s = " ".join([str(k) + " = " + str(v) if not type(v)==list else str(k)+" = "+" \n\t ".join([str(x) for x in v]) for k,v in tmp.items()])
+        return s.__hash__()
 
 class NLException(Exception):
     def __init__(self, num, *args):
@@ -777,6 +783,8 @@ class NL80211(GENLSocket):
                             bss.signal = struct.unpack('l',v)[0]
                         elif t==NL80211_BSS_FREQUENCY:
                             bss.frequency = struct.unpack('L',v)[0]
+                        elif t==NL80211_BSS_SEEN_MS_AGO:
+                            bss.last_seen = struct.unpack('I',v)[0]
                         elif t==NL80211_BSS_INFORMATION_ELEMENTS or\
                              t==NL80211_BSS_BEACON_IE:
                             ie = OpenStruct()
