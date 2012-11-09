@@ -25,6 +25,7 @@ def publish(pub,freq,rssi,bssid,ssid,dev='wlan0'):
         frequency = float(freq))
     msg.header.stamp = rospy.Time.now()
     pub.publish(msg)
+    print "pub"
 
 if __name__ == '__main__':
     pub=rospy.Publisher('rssi', RssiStamped)
@@ -41,7 +42,8 @@ if __name__ == '__main__':
     rospy.loginfo("collecting rssi on %s",str(interfaces))
 
     # communication with tcpdump
-    parser   = re.compile('.* (\d+) MHz.* (-\d+)dB .* BSSID:([0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]).* Beacon \((\S*)\) .*')
+    beacon_parser  = re.compile('.* (\d+) MHz.* (-\d+)dB .* BSSID:([0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]).* Beacon \((\S*)\) .*')
+    rts_pattern    = '.* (\d+) MHz.* (-\d+)dB .* TA:(%s).*'
     cmdlines = [shlex.split("/usr/sbin/tcpdump -eIi %s"%(iface))
                 for iface in interfaces]
     channels = [Popen(cmd,bufsize=4096,shell=False,stdout=PIPE).stdout
@@ -49,11 +51,30 @@ if __name__ == '__main__':
     interfaces = dict([(f.fileno(),if_name) for (f,if_name) in zip(channels,interfaces)])
     channels = dict([(f.fileno(),f) for f in channels])
 
+    # we also keep a set of seen beacons and add them to the list to also
+    # capture their RTS packets, further increasing the sampling rate
+    bssids = set()
+    rts_parsers = list()
+
     while not rospy.is_shutdown():
         r,w,x = select(channels.keys(),[],[],.5)
         readable = [(channels[fid],interfaces[fid]) for fid in r]
 
         for (f,dev) in readable:
-            m = parser.match(f.readline())
-            if m is None: continue
-            publish(pub,*m.groups(),dev=dev)
+            line = f.readline()
+            print "abc", line
+            m = beacon_parser.match(line)
+            if m is not None:
+                publish(pub,*m.groups(),dev=dev)
+
+                bssid = m.groups()[2]
+                if not bssid in bssids:
+                    bssids.add(bssid)
+                    rts_parsers.append(re.compile(rts_pattern%bssid))
+
+            for p in rts_parsers:
+                m = p.match(line)
+                if m is None: continue
+                publish(pub,*m.groups(),ssid="bloierg",dev=dev)
+
+

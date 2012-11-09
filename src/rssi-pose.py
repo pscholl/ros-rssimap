@@ -10,17 +10,18 @@ pub,lis = None,None
 
 def rssi(data):
     try:
-        (trans,rot) = lis.lookupTransform('/world', '/base_link', rospy.Time(0))
+        t = lis.getLatestCommonTime("/world", "/base_link")
+        (trans,rot) = lis.lookupTransform('/world', '/base_link', t)
         msg = RssiPoseStamped()
         msg.rssi = data
         msg.header.stamp = rospy.Time.now()
-        msg.header.frame_id = "/map"
+        msg.header.frame_id = "/world"
         msg.pose.position.x,msg.pose.position.y,msg.pose.position.z=trans
         msg.pose.orientation.x,msg.pose.orientation.y,\
                 msg.pose.orientation.z,msg.pose.orientation.w=rot
         pub.publish(msg)
     except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
-        pass
+        raise
 
 def rssi_pose_merge():
     global pub,lis
