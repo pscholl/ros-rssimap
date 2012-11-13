@@ -16,23 +16,23 @@ from select import select
 from subprocess import Popen,PIPE
 import re
 
+msg = RssiStamped()
+
 def publish(pub,freq,rssi,bssid,ssid,dev='wlan0'):
-    msg = RssiStamped(
-               id = "%s (%s)"%(ssid,bssid),
-              dev = dev,
-            bssid = [int(x,16) for x in bssid.split(':')],
-             rssi = float(rssi),
-        frequency = float(freq))
+    msg.id = "%s (%s)"%(ssid,bssid)
+    msg.dev = dev
+    msg.bssid = [int(x,16) for x in bssid.split(':')]
+    msg.rssi = float(rssi)
+    msg.frequency = float(freq)
     msg.header.stamp = rospy.Time.now()
     pub.publish(msg)
-    print "pub"
 
 if __name__ == '__main__':
     pub=rospy.Publisher('rssi', RssiStamped)
     rospy.init_node('rssi_wifi_tap')
 
     # init
-    interfaces = [if_name for if_name in all_interfaces() 
+    interfaces = [if_name for if_name in all_interfaces()
             if if_name[:4]=="wlan"]
 
     if len(interfaces) == 0:
@@ -42,11 +42,11 @@ if __name__ == '__main__':
     rospy.loginfo("collecting rssi on %s",str(interfaces))
 
     # communication with tcpdump
-    beacon_parser  = re.compile('.* (\d+) MHz.* (-\d+)dB .* BSSID:([0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]).* Beacon \((\S*)\) .*')
-    rts_pattern    = '.* (\d+) MHz.* (-\d+)dB .* TA:(%s).*'
+    bcn_pattern = '.* (\d+) MHz.* (-\d+)dB .* BSSID:([0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]).* Beacon \((\S*)\) .*'
+    rts_pattern = '.* (\d+) MHz.* (-\d+)dB .* TA:(%s).*'
     cmdlines = [shlex.split("/usr/sbin/tcpdump -eIi %s"%(iface))
                 for iface in interfaces]
-    channels = [Popen(cmd,bufsize=4096,shell=False,stdout=PIPE).stdout
+    channels = [Popen(cmd,bufsize=8192,shell=False,stdout=PIPE).stdout
                 for cmd in cmdlines]
     interfaces = dict([(f.fileno(),if_name) for (f,if_name) in zip(channels,interfaces)])
     channels = dict([(f.fileno(),f) for f in channels])
@@ -54,7 +54,7 @@ if __name__ == '__main__':
     # we also keep a set of seen beacons and add them to the list to also
     # capture their RTS packets, further increasing the sampling rate
     bssids = set()
-    rts_parsers = list()
+    parser = re.compile(bcn_pattern)
 
     while not rospy.is_shutdown():
         r,w,x = select(channels.keys(),[],[],.5)
@@ -62,19 +62,12 @@ if __name__ == '__main__':
 
         for (f,dev) in readable:
             line = f.readline()
-            print "abc", line
-            m = beacon_parser.match(line)
+            m = parser.match(line)
             if m is not None:
-                publish(pub,*m.groups(),dev=dev)
+                publish(pub,*m.groups()[:4],dev=dev)
+                print len(m.groups())
 
                 bssid = m.groups()[2]
                 if not bssid in bssids:
                     bssids.add(bssid)
-                    rts_parsers.append(re.compile(rts_pattern%bssid))
-
-            for p in rts_parsers:
-                m = p.match(line)
-                if m is None: continue
-                publish(pub,*m.groups(),ssid="bloierg",dev=dev)
-
-
+                    parser = re.compile("|".join([bcn_pattern]+[rts_pattern%bssid for bssid in bssids]))
