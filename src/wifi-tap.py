@@ -14,6 +14,7 @@ from rssimap.msg import RssiStamped
 from net_tools import all_interfaces, if_nametoindex
 from select import select
 from subprocess import Popen,PIPE
+from sys import exit
 import re
 
 msg = RssiStamped()
@@ -33,7 +34,7 @@ if __name__ == '__main__':
 
     # init
     interfaces = [if_name for if_name in all_interfaces()
-            if if_name[:4]=="wlan"]
+            if if_name[:4]=="wlan"]# and if_name!="wlan2"]
 
     if len(interfaces) == 0:
         rospy.logerr("no wifi interfaces found, are they 'up'?")
@@ -45,29 +46,39 @@ if __name__ == '__main__':
     bcn_pattern = '.* (\d+) MHz.* (-\d+)dB .* BSSID:([0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]).* Beacon \((\S*)\) .*'
     rts_pattern = '.* (\d+) MHz.* (-\d+)dB .* TA:(%s).*'
     cmdlines = [shlex.split("/usr/sbin/tcpdump -eIi %s"%(iface))
-                for iface in interfaces]
-    channels = [Popen(cmd,bufsize=8192,shell=False,stdout=PIPE).stdout
-                for cmd in cmdlines]
+                for iface in interfaces if iface!="wlan2"]
+    popens = [Popen(cmd,bufsize=8192,shell=False,stdout=PIPE) for cmd in cmdlines]
+    channels = [p.stdout for p in popens]
     interfaces = dict([(f.fileno(),if_name) for (f,if_name) in zip(channels,interfaces)])
-    channels = dict([(f.fileno(),f) for f in channels])
+    popens     = dict([(f.fileno(),p) for (f,p) in zip(channels,popens)])
+    channels   = dict([(f.fileno(),f) for f in channels])
 
     # we also keep a set of seen beacons and add them to the list to also
     # capture their RTS packets, further increasing the sampling rate
-    bssids = set()
     parser = re.compile(bcn_pattern)
+    bssids = set()
 
     while not rospy.is_shutdown():
         r,w,x = select(channels.keys(),[],[],.5)
-        readable = [(channels[fid],interfaces[fid]) for fid in r]
 
-        for (f,dev) in readable:
+        for fid in r:
+            f,dev = channels[fid],interfaces[fid]
             line = f.readline()
             m = parser.match(line)
             if m is not None:
                 publish(pub,*m.groups()[:4],dev=dev)
-                print len(m.groups())
 
                 bssid = m.groups()[2]
                 if not bssid in bssids:
                     bssids.add(bssid)
                     parser = re.compile("|".join([bcn_pattern]+[rts_pattern%bssid for bssid in bssids]))
+
+            else: # check if the tcpdump process died
+                if popens[fid].poll() is not None:
+                    rospy.logerr("shutting down interface %s"%(dev))
+                    del channels[fid],interfaces[fid]
+
+                    if len(interfaces)==0:
+                        rospy.logerr("no more devices to scan on, shutting down!")
+                        exit(-1)
+
