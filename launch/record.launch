@@ -1,3 +1,3 @@
 <launch>
-  <node name="rosbag_record" pkg="rosbag" type="rosbag" args="record -o $(env RSSIMAP_OUT)/rssimap /rssi_pose /rssi /tf /poseupdate /raw_imu /magnetic /altimeter /pressure_height /map /trajectory /scan /imu /state /pose /slam_out_pose" output="screen"/>
+  <node name="rosbag_record" pkg="rosbag" type="rosbag" args="record -o $(env RSSIMAP_OUT)/rssimap /rssi /altimeter /pressure_height /magnetic /raw_imu /scan" output="screen"/>
 </launch>
