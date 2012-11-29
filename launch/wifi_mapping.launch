@@ -5,6 +5,6 @@
 
   <include file="$(find quadro)/launch/mapping_box.launch"/>
 
-  <node name="wifi_tap" pkg="rssimap" type="wifi-tap.py" />
+  <node name="wifi_tap" pkg="rssimap" type="wifi-tap.py" required="true"/>
   <include file="$(find rssimap)/launch/record.launch"/>
 </launch>
