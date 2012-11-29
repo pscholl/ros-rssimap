@@ -20,8 +20,8 @@ def rssi(data):
         msg.pose.orientation.x,msg.pose.orientation.y,\
                 msg.pose.orientation.z,msg.pose.orientation.w=rot
         pub.publish(msg)
-    except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
-        raise
+    except (Exception, tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+        pass
 
 def rssi_pose_merge():
     global pub,lis
