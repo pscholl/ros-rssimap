@@ -68,10 +68,10 @@ if __name__ == '__main__':
             if m is not None:
                 publish(pub,*m.groups()[:4],dev=dev)
 
-                bssid = m.groups()[2]
-                if not bssid in bssids:
-                    bssids.add(bssid)
-                    parser = re.compile("|".join([bcn_pattern]+[rts_pattern%bssid for bssid in bssids]))
+                #bssid = m.groups()[2]
+                #if not bssid in bssids:
+                #    bssids.add(bssid)
+                #    parser = re.compile("|".join([bcn_pattern]+[rts_pattern%bssid for bssid in bssids]))
 
             else: # check if the tcpdump process died
                 if popens[fid].poll() is not None:
