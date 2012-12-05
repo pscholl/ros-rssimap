@@ -10,16 +10,16 @@
   <include file="$(find hector_slam_launch)/launch/mapping_box.launch"/>
   <node pkg="tf" type="static_transform_publisher" name="laser_broadcaster" args="0 0 .1 0 0 0 base_link laser 100" />
   <node name="pose_estimation" pkg="hector_pose_estimation" type="pose_estimation" output="screen">
-    <remap from="poseupdate" to="dflksdjflksdjf" />
+    <remap from="poseupdate" to="nirvana"/>
   </node>
-
-  <node name="replay" pkg="rosbag" type="play" args="--clock $(arg bagfile).bag -r 10" required="true"/>
 
   <!-- the worldmap argument can be used to give a worldmap.yaml file previously saved with the map_saver node,
        at the same time a $bagfile.yaml file will be searched and used to publish the /map -> /world tf. Thus
        "aligning" the currently played back /map to the /world frame.
   -->
   <group if="$(arg doalign)">
+    <node name="replay" pkg="rosbag" type="play" args="--clock $(arg bagfile).bag -r 1" required="true"/>
+
     <node name="world_map_server" pkg="map_server" type="map_server" args="$(arg worldmap)" required="true">
       <param name="frame_id" value="world"/>
       <remap from="map" to="world"/>
@@ -35,6 +35,10 @@
     </node>
 
     <node name="rssi_csv_export" pkg="rssimap" type="save_rssi.sh" required="true"/>
+  </group>
+
+  <group unless="$(arg doalign)">
+    <node name="replay_and_save" pkg="rssimap" type="replay_and_save_map.sh" required="true"/>
   </group>
 
   <node name="rssi_pose" pkg="rssimap" type="rssi-pose.py" required="true"/>
